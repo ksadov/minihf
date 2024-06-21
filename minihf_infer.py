@@ -38,7 +38,7 @@ def set_adapter(model, adapter_name):
 
 def load_generator_evaluator(config):
     evaluator_adapter_name = config['evaluator_adapter_name']
-    generator_adapter_name = None
+    generator_adapter_name = config['generator_adapter_name']
     if evaluator_adapter_name is None:
         tokenizer = AutoTokenizer.from_pretrained(config['base_model_name'])
         model = AutoModelForCausalLM.from_pretrained(config['base_tokenizer_name'])
@@ -117,15 +117,13 @@ def create_app(config, device):
                 prompt_node = False
             new_tokens = int(params['new_tokens'])
             n_outputs = int(params['weave_beam_width'])
-            use_dummy = True
-            if use_dummy:
-                base_model_name = "gpt2"
-            else:
+            base_model_name = config['base_model_name']
+            if base_model_name is None:
                 base_model_name = generator[1].active_peft_config.base_model_name_or_path
             try:
                 adapter = params["adapter"]
             except KeyError:
-                if use_dummy:
+                if config['evaluator_adapter_name'] is None:
                     adapter = None
                 else:
                     adapter = "generator" if "generator" in generator[1].peft_config else None
