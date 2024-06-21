@@ -22,7 +22,6 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.generation.streamers import BaseStreamer
 
-
 def logsumexp(xs):
     if not len(xs):
         return float("-inf")
@@ -200,10 +199,10 @@ def generate_outputs(generator, text, n_tokens, n=1, batch_size=1):
     inputs = tokenizer(
         text,
         return_tensors="pt",
-        padding=True,
+        #padding=True,
         truncation=True,
         max_length=4096 - n_tokens,
-    ).to("cuda")
+    ).to(model.device)
 
     outputs = []
     with ProgressBarStreamer(total=n_tokens * n) as pbar:
@@ -346,7 +345,7 @@ def evaluate_outputs(evaluator, score_prompt_fns, texts):
             padding=True,
             truncation=True,
             max_length=4096,
-        ).input_ids.to("cuda")
+        ).input_ids.to(model.device)
         logits = model(tokens).logits
         scores.append(
             torch.tensor(

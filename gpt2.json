@@ -1,0 +1,6 @@
+{
+  "evaluator_adapter_name": null,
+  "generator_adapter_name": null,
+  "base_model_name": "openai-community/gpt2",
+  "base_tokenizer_name": "openai-community/gpt2"
+}

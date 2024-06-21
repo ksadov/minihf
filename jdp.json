@@ -1,0 +1,6 @@
+{
+  "evaluator_adapter_name": "jdpressman/minihf_evaluator_mistral_7b_v0.1",
+  "generator_adapter_name": null,
+  "base_model_name": null,
+  "base_tokenizer_name": null
+}
