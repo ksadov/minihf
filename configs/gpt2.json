@@ -2,5 +2,16 @@
   "evaluator_adapter_name": null,
   "generator_adapter_name": null,
   "base_model_name": "openai-community/gpt2",
-  "base_tokenizer_name": "openai-community/gpt2"
+  "base_tokenizer_name": "openai-community/gpt2",
+  "init_weave_param": {
+    "evaluation_prompt": "",
+    "new_tokens": 128,
+    "n_tokens": 16,
+    "budget": 8,
+    "round_budget": 4,
+    "n_expand": 2,
+    "beam_width": 2,
+    "max_lookahead": 3,
+    "temperature": 0.25
+  }
 }

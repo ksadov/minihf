@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from functools import partial
 import argparse
 import utils
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify, make_response, render_template
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -109,7 +109,7 @@ def create_app(config, device):
             return response
         if request.method =='POST':
             params = request.get_json()
-            #print("REQUEST JSON", params)
+            print("REQUEST JSON", params)
             prompt = params['prompt']
             if 'prompt_node' in params:
                 prompt_node = params['prompt_node']
@@ -252,7 +252,7 @@ def create_app(config, device):
         
     @app.route("/")
     def index():
-        return app.send_static_file("minihf.html")
+        return render_template('minihf.html', **config['init_weave_param'])
     return app
 
 def main():
