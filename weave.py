@@ -77,9 +77,7 @@ class ProgressBarStreamer(BaseStreamer):
         self.next_tokens_are_prompt = True
 
 
-def load_generator():
-    # model_name = "EleutherAI/gpt-neox-20b"
-    model_name = "mistralai/Mistral-7B-v0.1"
+def load_generator(model_name="mistralai/Mistral-7B-v0.1", load_dtype="int8"):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.truncation_side = "left"
     tokenizer.padding_side = "left"
@@ -87,16 +85,15 @@ def load_generator():
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         device_map="auto",
-        load_in_4bit=False,
-        load_in_8bit=True,
+        load_in_4bit=load_dtype == "int4",
+        load_in_8bit=load_dtype == "int8",
         torch_dtype=torch.float16,
         trust_remote_code=True,
     )
     return tokenizer, model
 
 
-def load_evaluator():
-    model_name = "jdpressman/minihf_evaluator_mistral_7b_v0.1"
+def load_evaluator(model_name="jdpressman/minihf_evaluator_mistral_7b_v0.1", load_dtype="int4"):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.truncation_side = "left"
     tokenizer.padding_side = "left"
@@ -104,8 +101,8 @@ def load_evaluator():
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         device_map="auto",
-        load_in_4bit=True,
-        load_in_8bit=False,
+        load_in_4bit=load_dtype == "int4",
+        load_in_8bit=load_dtype == "int8",
         torch_dtype=torch.float16,
         trust_remote_code=True,
     )
@@ -604,20 +601,21 @@ def main():
                         default="http://localhost:5000/v1/completions")
     parser.add_argument("--eval-api-key", help="API key for the evaluation model API",
                         default=None)
-    parser.add_argument("--model-name", help="The inference engine to use for API")
+    parser.add_argument("--gen-model-name", help="The inference engine to use for generation")
+    parser.add_argument("--eval-model-name", help="The inference engine to use for evaluation")
     args = parser.parse_args()
 
     os.environ["BITSANDBYTES_NOWELCOME"] = "1"
 
     if args.use_api:
-        generate_fn = partial(generate_outputs_api, args.eval_api_base, args.eval_api_key, args.model_name)
-        evaluate_fn = partial(evaluate_outputs_api, args.gen_api_base, args.gen_api_key, args.model_name,
+        generate_fn = partial(generate_outputs_api, args.eval_api_base, args.eval_api_key, args.gen_model_name)
+        evaluate_fn = partial(evaluate_outputs_api, args.gen_api_base, args.gen_api_key, args.eval_model_name,
                               [api_debug_score_prompt_fn])
     else:
         print("Loading generator model...")
-        generator = load_generator()
+        generator = load_generator(args.gen_model_name, load_dtype="fp16")
         print("Loading evaluator model...")
-        evaluator = load_evaluator()
+        evaluator = load_evaluator(args.eval_model_name, load_dtype="fp16")
         generate_fn = partial(generate_outputs, generator, batch_size=4)
         score_prompt_fn = partial(make_score_prompt_fn,
                                   evaluator,
