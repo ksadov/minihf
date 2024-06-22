@@ -242,7 +242,7 @@ def generate_outputs_openai(text, n_tokens, n=1):
     return texts
 
 
-def generate_outputs_vllm(model_name, text, n_tokens, n=1, port=5000):
+def generate_outputs_vllm(api_base, model_name, text, n_tokens, n=1, port=5000):
     payload = {"n":n,
                "temperature":1,
                "top_k":50,
@@ -252,7 +252,7 @@ def generate_outputs_vllm(model_name, text, n_tokens, n=1, port=5000):
                "prompt":text,
                "stream":False,
                "seed":random.randrange(1000000)}
-    response = requests.post(f"http://localhost:{port}/v1/completions/",
+    response = requests.post(api_base,
                              data=json.dumps(payload))
     # return completion.json()["choices"][0]["text"]
     texts = [choice["text"] for choice in response.json()["choices"]]
@@ -313,7 +313,7 @@ def make_score_prompt_fn(evaluator, template, suffix, prompt, response):
                             max_length=4096 - template_length - response_length)
     response = tokenizer.decode(response_toks.input_ids[0], skip_special_tokens=True)
     prompt = tokenizer.decode(prompt_toks.input_ids[0], skip_special_tokens=True)
-    
+
     return template.format(prompt = prompt, response = response) + suffix
 
 def make_score_prompt_vllm(template, suffix, text):
@@ -387,10 +387,10 @@ class Choice:
 class MockLogProbs:
     pass
 
-def evaluate_outputs_vllm(model_name, score_prompt_fns, texts, n=1, port=5000):
+def evaluate_outputs_vllm(api_base, model_name, score_prompt_fns, texts, n=1, port=5000):
     scores = []
     for text in texts:
-        prompts = [score_prompt_fn(text) for score_prompt_fn in score_prompt_fns]       
+        prompts = [score_prompt_fn(text) for score_prompt_fn in score_prompt_fns]
 #    for score_prompt_fn in score_prompt_fns:
 #        prompts = [score_prompt_fn(text) for text in texts]
         payload = {"n":n,
@@ -403,8 +403,7 @@ def evaluate_outputs_vllm(model_name, score_prompt_fns, texts, n=1, port=5000):
                    "stream":False,
                    "logprobs":100,
                    "seed":random.randrange(1000000)}
-        response = requests.post(f"http://localhost:{port}/v1/completions/",
-                                   data=json.dumps(payload))
+        response = requests.post(api_base, data=json.dumps(payload))
         choices = []
         for choice in response.json()["choices"]:
             choice_o = Choice()
@@ -416,7 +415,7 @@ def evaluate_outputs_vllm(model_name, score_prompt_fns, texts, n=1, port=5000):
     # TODO: Return these unpooled so the separate components can be stored in the
     # weave tree
     return torch.stack(scores).mean(dim=1)
-        
+
 class TreeNode:
     max_id = 0
 
@@ -619,6 +618,10 @@ def main():
     )
     parser.add_argument("--use-openai", action="store_true", help="Use OpenAI API")
     parser.add_argument("--use-vllm", action="store_true", help="Use vllm inference server")
+    parser.add_argument("--gen-api-base", help="The base URL for the generator model API",
+                        default="http://localhost:5000/v1/completions")
+    parser.add_argument("--eval-api-base", help="The base URL for the evaluation model API",
+                        default="http://localhost:5000/v1/completions")
     parser.add_argument("--model-name", help="The inference engine to use for API")
     args = parser.parse_args()
 
@@ -633,8 +636,9 @@ def main():
         generate_fn = generate_outputs_openai
         evaluate_fn = evaluate_outputs_openai
     elif args.use_vllm:
-        generate_fn = partial(generate_outputs_vllm, args.model_name)
-        evaluate_fn = partial(evaluate_outputs_vllm, args.model_name, [vllm_debug_score_prompt_fn])
+        generate_fn = partial(generate_outputs_vllm, args.eval_api_base, args.model_name)
+        evaluate_fn = partial(evaluate_outputs_vllm, args.gen_api_base, args.model_name,
+                              [vllm_debug_score_prompt_fn])
     else:
         print("Loading generator model...")
         generator = load_generator()
