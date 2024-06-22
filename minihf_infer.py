@@ -37,11 +37,11 @@ def set_adapter(model, adapter_name):
         model.set_adapter(old_adapter_name)
 
 def load_generator_evaluator(config):
-    evaluator_adapter_name = config['evaluator_adapter_name']
-    generator_adapter_name = config['generator_adapter_name']
+    evaluator_adapter_name = config['evaluator']['adapter_name']
+    generator_adapter_name = config['generator']['adapter_name']
     if evaluator_adapter_name is None:
-        tokenizer = AutoTokenizer.from_pretrained(config['base_model_name'])
-        model = AutoModelForCausalLM.from_pretrained(config['base_tokenizer_name'])
+        tokenizer = AutoTokenizer.from_pretrained(config['generator']['tokenizer_name'])
+        model = AutoModelForCausalLM.from_pretrained(config['generator']['model_name'])
     else:
         peft_config = peft.PeftConfig.from_pretrained(evaluator_adapter_name)
         model_name = peft_config.base_model_name_or_path
@@ -87,12 +87,12 @@ def load_models(config):
     global evaluator, evaluate_fn, generator, generate_fn
     tokenizer, model = load_generator_evaluator(config)
     evaluator = generator = (tokenizer, model)
-    if config['generator_adapter_name'] is None:
+    if config['generator']['adapter_name'] is None:
         generate_fn = partial(generate_outputs, generator, batch_size=1)
     else:
         adapter_name = "generator" if "generator" in generator[1].peft_config else None
         generate_fn = set_adapter(generator[1], adapter_name)(partial(generate_outputs, generator, batch_size=1))
-    if config['evaluator_adapter_name'] is None:
+    if config['evaluator']['adapter_name'] is None:
         evaluate_fn = lambda x, y: [1.0] * len(y)
     else:
         evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs, evaluator))
