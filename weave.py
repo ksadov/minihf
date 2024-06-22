@@ -13,7 +13,6 @@ import os
 import random
 import asyncio
 
-import openai
 import requests
 from rich import print as rprint
 from rich.traceback import install
@@ -230,19 +229,7 @@ def generate_outputs(generator, text, n_tokens, n=1, batch_size=1):
     return [out_texts[i][in_length:] for i in range(len(out_texts))]
 
 
-def generate_outputs_openai(text, n_tokens, n=1):
-    response = openai.Completion.create(
-        engine="davinci-002",
-        prompt=text,
-        temperature=0.9,
-        max_tokens=n_tokens,
-        n=n,
-    )
-    texts = [choice.text for choice in response.choices]
-    return texts
-
-
-def generate_outputs_vllm(api_base, api_key, model_name, text, n_tokens, n=1, port=5000):
+def generate_outputs_api(api_base, api_key, model_name, text, n_tokens, n=1, port=5000):
     payload = {"n":n,
                "temperature":1,
                "top_k":50,
@@ -264,10 +251,6 @@ def generate_outputs_vllm(api_base, api_key, model_name, text, n_tokens, n=1, po
     # return completion.json()["choices"][0]["text"]
     texts = [choice["text"] for choice in response.json()["choices"]]
     return texts
-
-def setup_client(api_key, base_url):
-    client = openai.Client(api_key=api_key, api_base=base_url)
-    return client
 
 def generate_outputs_remote(client, **params):
     response = client.completions.create(
@@ -323,20 +306,18 @@ def make_score_prompt_fn(evaluator, template, suffix, prompt, response):
 
     return template.format(prompt = prompt, response = response) + suffix
 
-def make_score_prompt_vllm(template, suffix, text):
+def make_score_prompt_api(template, suffix, text):
     return template.format(text=text) + suffix
 
 score_prompt_fn = partial(make_score_prompt_fn, template)
 
 falcon_score_prompt_fn = partial(score_prompt_fn, suffix="\n")
 
-openai_score_prompt_fn = partial(score_prompt_fn, suffix="\n\n")
-
 flan_score_prompt_fn = partial(make_score_prompt_fn, suffix="<|end|>")
 
-vllm_score_prompt_fn = partial(make_score_prompt_vllm, template2, "<|end|>")
+api_score_prompt_fn = partial(make_score_prompt_api, template2, "<|end|>")
 
-vllm_debug_score_prompt_fn = partial(make_score_prompt_vllm, template2, "\n")
+api_debug_score_prompt_fn = partial(make_score_prompt_api, template2, "\n")
 
 @torch.no_grad()
 def evaluate_outputs(evaluator, score_prompt_fns, texts):
@@ -375,26 +356,13 @@ def evaluate_outputs(evaluator, score_prompt_fns, texts):
     # weave tree
     return torch.stack(scores).mean(dim=0)
 
-
-def evaluate_outputs_openai(texts):
-    prompts = [make_prompt_for_scoring_openai(text) for text in texts]
-    response = openai.Completion.create(
-        engine="davinci-002",
-        prompt=prompts,
-        max_tokens=1,
-        temperature=1.0,
-        logprobs=5,
-        n=1,
-    )
-    return [get_score_from_completion(choice) for choice in response.choices]
-
 class Choice:
     pass
 
 class MockLogProbs:
     pass
 
-def evaluate_outputs_vllm(api_base, api_key, model_name, score_prompt_fns, texts, n=1):
+def evaluate_outputs_api(api_base, api_key, model_name, score_prompt_fns, texts, n=1):
     scores = []
     for text in texts:
         prompts = [score_prompt_fn(text) for score_prompt_fn in score_prompt_fns]
@@ -627,11 +595,7 @@ def weave_tree_search(
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--api-key", default=os.environ.get("OPENAI_API_KEY", ""), help="OpenAI API key"
-    )
-    parser.add_argument("--use-openai", action="store_true", help="Use OpenAI API")
-    parser.add_argument("--use-vllm", action="store_true", help="Use vllm inference server")
+    parser.add_argument("--use-api", action="store_true", help="Use inference server via API")
     parser.add_argument("--gen-api-base", help="The base URL for the generator model API",
                         default="http://localhost:5000/v1/completions")
     parser.add_argument("--gen-api-key", help="API key for the generator model API",
@@ -643,20 +607,12 @@ def main():
     parser.add_argument("--model-name", help="The inference engine to use for API")
     args = parser.parse_args()
 
-    if args.use_openai and not args.api_key:
-        rprint("[bold red]No OpenAI API key provided[/]")
-        exit(1)
-
-    # openai.api_key = args.api_key
     os.environ["BITSANDBYTES_NOWELCOME"] = "1"
 
-    if args.use_openai:
-        generate_fn = generate_outputs_openai
-        evaluate_fn = evaluate_outputs_openai
-    elif args.use_vllm:
-        generate_fn = partial(generate_outputs_vllm, args.eval_api_base, args.eval_api_key, args.model_name)
-        evaluate_fn = partial(evaluate_outputs_vllm, args.gen_api_base, args.gen_api_key, args.model_name,
-                              [vllm_debug_score_prompt_fn])
+    if args.use_api:
+        generate_fn = partial(generate_outputs_api, args.eval_api_base, args.eval_api_key, args.model_name)
+        evaluate_fn = partial(evaluate_outputs_api, args.gen_api_base, args.gen_api_key, args.model_name,
+                              [api_debug_score_prompt_fn])
     else:
         print("Loading generator model...")
         generator = load_generator()
