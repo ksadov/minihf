@@ -242,7 +242,7 @@ def generate_outputs_openai(text, n_tokens, n=1):
     return texts
 
 
-def generate_outputs_vllm(api_base, model_name, text, n_tokens, n=1, port=5000):
+def generate_outputs_vllm(api_base, api_key, model_name, text, n_tokens, n=1, port=5000):
     payload = {"n":n,
                "temperature":1,
                "top_k":50,
@@ -252,8 +252,15 @@ def generate_outputs_vllm(api_base, model_name, text, n_tokens, n=1, port=5000):
                "prompt":text,
                "stream":False,
                "seed":random.randrange(1000000)}
+    if api_key is None:
+        header = {}
+    else:
+        header = {"Authorization": f"Bearer {api_key}"}
+    header["Content-Type"] = "application/json"
     response = requests.post(api_base,
+                             headers=header,
                              data=json.dumps(payload))
+    print("Response:", response.json())
     # return completion.json()["choices"][0]["text"]
     texts = [choice["text"] for choice in response.json()["choices"]]
     return texts
@@ -387,7 +394,7 @@ class Choice:
 class MockLogProbs:
     pass
 
-def evaluate_outputs_vllm(api_base, model_name, score_prompt_fns, texts, n=1, port=5000):
+def evaluate_outputs_vllm(api_base, api_key, model_name, score_prompt_fns, texts, n=1):
     scores = []
     for text in texts:
         prompts = [score_prompt_fn(text) for score_prompt_fn in score_prompt_fns]
@@ -403,7 +410,14 @@ def evaluate_outputs_vllm(api_base, model_name, score_prompt_fns, texts, n=1, po
                    "stream":False,
                    "logprobs":100,
                    "seed":random.randrange(1000000)}
-        response = requests.post(api_base, data=json.dumps(payload))
+        if api_key is None:
+            header = {}
+        else:
+            header = {"Authorization": f"Bearer {api_key}"}
+        header["Content-Type"] = "application/json"
+        response = requests.post(api_base,
+                                 headers=header,
+                                 data=json.dumps(payload))
         choices = []
         for choice in response.json()["choices"]:
             choice_o = Choice()
@@ -620,8 +634,12 @@ def main():
     parser.add_argument("--use-vllm", action="store_true", help="Use vllm inference server")
     parser.add_argument("--gen-api-base", help="The base URL for the generator model API",
                         default="http://localhost:5000/v1/completions")
+    parser.add_argument("--gen-api-key", help="API key for the generator model API",
+                        default=None)
     parser.add_argument("--eval-api-base", help="The base URL for the evaluation model API",
                         default="http://localhost:5000/v1/completions")
+    parser.add_argument("--eval-api-key", help="API key for the evaluation model API",
+                        default=None)
     parser.add_argument("--model-name", help="The inference engine to use for API")
     args = parser.parse_args()
 
@@ -636,8 +654,8 @@ def main():
         generate_fn = generate_outputs_openai
         evaluate_fn = evaluate_outputs_openai
     elif args.use_vllm:
-        generate_fn = partial(generate_outputs_vllm, args.eval_api_base, args.model_name)
-        evaluate_fn = partial(evaluate_outputs_vllm, args.gen_api_base, args.model_name,
+        generate_fn = partial(generate_outputs_vllm, args.eval_api_base, args.eval_api_key, args.model_name)
+        evaluate_fn = partial(evaluate_outputs_vllm, args.gen_api_base, args.gen_api_key, args.model_name,
                               [vllm_debug_score_prompt_fn])
     else:
         print("Loading generator model...")
