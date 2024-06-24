@@ -227,7 +227,7 @@ def generate_outputs(generator, inference_params, n_tokens, text, n=1, batch_siz
     return [out_texts[i][in_length:] for i in range(len(out_texts))]
 
 
-def generate_outputs_api(api_base, api_key, model_name, inference_params, text, n_tokens, n=1, port=5000):
+def generate_outputs_api(api_base, api_key, model_name, inference_params, text, n_tokens, n=1, verbose=False):
     payload = {"n":n,
                "max_tokens": n_tokens,
                "model":model_name,
@@ -243,7 +243,8 @@ def generate_outputs_api(api_base, api_key, model_name, inference_params, text, 
     response = requests.post(api_base,
                              headers=header,
                              data=json.dumps(payload))
-    # print("GEN API RESPONSE:", response.json())
+    if verbose:
+        print("GEN API RESPONSE:", response.json())
     texts = [choice["text"] for choice in response.json()["choices"]]
     return texts
 
@@ -352,7 +353,7 @@ class Choice:
 class MockLogProbs:
     pass
 
-def evaluate_outputs_api(api_base, api_key, model_name, score_prompt_fns, inference_params, texts, n=1):
+def evaluate_outputs_api(api_base, api_key, model_name, score_prompt_fns, inference_params, texts, n=1, verbose=False):
     scores = []
     for text in texts:
         prompts = [score_prompt_fn(text) for score_prompt_fn in score_prompt_fns]
@@ -375,7 +376,8 @@ def evaluate_outputs_api(api_base, api_key, model_name, score_prompt_fns, infere
                                  headers=header,
                                  data=json.dumps(payload))
         choices = []
-        # print("EVAL API RESPONSE:", response.json())
+        if verbose:
+            print("EVAL API RESPONSE:", response.json())
         for choice in response.json()["choices"]:
             choice_o = Choice()
             mocklogprobs_o = MockLogProbs()
@@ -585,6 +587,7 @@ def weave_tree_search(
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", "-c", help="Path to the configuration file", default="configs/gpt2.json")
+    parser.add_argument("--verbose", "-v", help="Print API responses", action="store_true")
     args = parser.parse_args()
 
     os.environ["BITSANDBYTES_NOWELCOME"] = "1"
@@ -598,7 +601,8 @@ def main():
                               batch_size=config['generator']['batch_size'])
     else:
         generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'],
-                              config['generator']['model_name'], config['generator']['inference_params'])
+                              config['generator']['model_name'], config['generator']['inference_params'],
+                                verbose=args.verbose)
 
     if config['evaluator']['api_base'] is None:
         print("Loading evaluator model...")
@@ -611,7 +615,7 @@ def main():
     else:
         evaluate_fn = partial(evaluate_outputs_api, config['evaluator']['api_base'], config['evaluator']['api_key'],
                               config['evaluator']['model_name'], [api_debug_score_prompt_fn],
-                              config['evaluator']['inference_params'])
+                              config['evaluator']['inference_params'], verbose=args.verbose)
 
     # system_prompt = (
     #     "A well-written, sad story that makes the reader feel like crying:\n\n"
