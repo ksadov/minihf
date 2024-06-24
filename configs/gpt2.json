@@ -4,7 +4,12 @@
     "is_adapter": false,
     "api_base": "http://localhost:5000/v1/completions",
     "api_key": null,
-    "load_dtype": null
+    "load_dtype": null,
+    "inference_params": {
+      "temperature": 1,
+      "top_k": 50,
+      "repetition_penalty": 1.02
+    }
   },
   "generator": {
     "model_name": "openai-community/gpt2",

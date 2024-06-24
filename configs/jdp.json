@@ -4,7 +4,12 @@
     "is_adapter": true,
     "api_base": null,
     "api_key": null,
-    "load_dtype": "int8"
+    "load_dtype": "int8",
+    "inference_params": {
+      "temperature": 1,
+      "top_k": 50,
+      "repetition_penalty": 1.02
+    }
   },
   "generator": {
     "model_name": "mistralai/Mistral-7B-v0.1",
