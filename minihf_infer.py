@@ -16,8 +16,8 @@ import peft
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from transformers import StoppingCriteria, StoppingCriteriaList
 from transformers import BitsAndBytesConfig
-from weave import weave_tree_search, generate_outputs, evaluate_outputs, make_gen_eval_fns
-from weave import make_score_prompt_fn, TreeNode
+from inference.weave import weave_tree_search, make_gen_eval_fns, TreeNode
+from inference.utils import generate_outputs_local, evaluate_outputs_local
 from lora_tune import lora_tune_evaluator
 from dataset import ZippedConversationsDataset
 
@@ -84,10 +84,10 @@ def load_models(config):
         tokenizer, model = load_shared_base_generator_evaluator(config)
         evaluator = generator = (tokenizer, model)
         adapter_name = "generator" if "generator" in generator[1].peft_config else None
-        generate_fn = set_adapter(generator[1], adapter_name)(partial(generate_outputs, generator,
+        generate_fn = set_adapter(generator[1], adapter_name)(partial(generate_outputs_local, generator,
                                                                       config['generator']['inference_params'],
                                                                       batch_size=1))
-        evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs,
+        evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs_local,
                                                                          evaluator))
     else:
         generate_fn, evaluate_fn = make_gen_eval_fns(config, config['init_weave_param']['evaluation_prompt'])
@@ -124,7 +124,7 @@ def create_app(config, device):
             if (adapter == "generator") or (adapter == None):
                 gen_fn = generate_fn
             elif adapter == "evaluator":
-                gen_fn = set_adapter(generator[1], "evaluator")(partial(generate_outputs, generator, batch_size=1))
+                gen_fn = set_adapter(generator[1], "evaluator")(partial(generate_outputs_local, generator, batch_size=1))
             outs = gen_fn(prompt, new_tokens, n=n_outputs)
             batch = []
             if prompt_node:

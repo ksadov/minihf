@@ -10,11 +10,11 @@ import math
 from operator import attrgetter
 import os
 import random
+from inference.evaluator import LocalEvaluator, RemoteEvaluator
+from inference.generator import LocalGenerator, RemoteGenerator
 
 from rich import print as rprint
 from rich.traceback import install
-
-from infer import make_gen_eval_fns
 
 from utils import load_config
 
@@ -255,6 +255,23 @@ def weave_tree_search(
         reverse=True,
     )
     return nodes[:beam_width]
+
+def make_gen_eval_fns(config, evaluation_prompt):
+    if config['generator']['api_base'] is None:
+        generator = LocalGenerator(config['generator']['model_name'], config['generator']['load_dtype'],
+                                   config['generator']['inference_params'])
+    else:
+        generator = RemoteGenerator(config['generator']['model_name'], config['generator']['api_base'],
+                                    config['generator']['api_key'], config['generator']['inference_params'])
+
+    if config['evaluator']['api_base'] is None:
+        evaluator = LocalEvaluator(config['evaluator']['model_name'], config['evaluator']['load_dtype'],
+                                   config['evaluator']['inference_params'], evaluation_prompt, "<|end|>")
+    else:
+        evaluator = RemoteEvaluator(config['evaluator']['model_name'], config['evaluator']['api_base'],
+                                    config['evaluator']['api_key'], config['evaluator']['inference_params'],
+                                    evaluation_prompt, "<|end|>")
+    return generator.generate_outputs, evaluator.evaluate_outputs
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
