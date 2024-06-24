@@ -192,7 +192,7 @@ def get_score_from_chat_completion(response, smoothing=1.0):
 
 
 @torch.no_grad()
-def generate_outputs(generator, inference_params, n_tokens, text, n=1, batch_size=1):
+def generate_outputs(generator, inference_params, text, n_tokens, n=1, batch_size=1):
     tokenizer, model = generator
 
     inputs = tokenizer(
@@ -603,7 +603,7 @@ def main():
     try:
         branches = weave_tree_search(
             tree=tree,
-            generate_fn=partial(generate_fn, w_p['n_tokens']),
+            generate_fn=partial(generate_fn, n_tokens=w_p['n_tokens']),
             evaluate_fn=evaluate_fn,
             budget=w_p['budget'],
             round_budget=w_p['round_budget'],
