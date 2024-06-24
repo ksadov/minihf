@@ -192,7 +192,7 @@ def get_score_from_chat_completion(response, smoothing=1.0):
 
 
 @torch.no_grad()
-def generate_outputs(generator, text, n_tokens, n=1, batch_size=1):
+def generate_outputs(generator, inference_params, text, n_tokens, n=1, batch_size=1):
     tokenizer, model = generator
 
     inputs = tokenizer(
