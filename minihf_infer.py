@@ -89,14 +89,17 @@ def load_models(config):
     evaluator = generator = (tokenizer, model)
     if config['shared_base_adapters']:
         adapter_name = "generator" if "generator" in generator[1].peft_config else None
-        generate_fn = set_adapter(generator[1], adapter_name)(partial(generate_outputs, generator, batch_size=1))
+        generate_fn = set_adapter(generator[1], adapter_name)(partial(generate_outputs, generator,
+                                                                      config['generator']['inference_params'],
+                                                                      batch_size=1))
     else:
-        generate_fn = partial(generate_outputs, generator, batch_size=1)
+        generate_fn = partial(generate_outputs, generator, config['generator']['inference_params'], batch_size=1)
     if config['evaluator']['model_name'] is None:
             evaluate_fn = None
     else:
         if config['shared_base_adapters']:
-            evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs, evaluator))
+            evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs,
+                                                                         evaluator))
         else:
             evaluate_fn = partial(evaluate_outputs, evaluator)
 
@@ -112,7 +115,6 @@ def create_app(config, device):
             return response
         if request.method =='POST':
             params = request.get_json()
-            print("REQUEST JSON", params)
             prompt = params['prompt']
             if 'prompt_node' in params:
                 prompt_node = params['prompt_node']
@@ -235,7 +237,6 @@ def create_app(config, device):
                             "timestamp":timestamp,
                             "nodes":branch.serialize_branch()})
             # TODO: Proper CORS
-            print("BATCH", batch)
             response = jsonify(utils.jsonify_tensors(batch))
             response.headers.add("Access-Control-Allow-Origin", "*")
             return response
