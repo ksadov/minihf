@@ -192,7 +192,7 @@ def get_score_from_chat_completion(response, smoothing=1.0):
 
 
 @torch.no_grad()
-def generate_outputs(generator, inference_params, text, n_tokens, n=1, batch_size=1):
+def generate_outputs(generator, inference_params, n_tokens, text, n=1, batch_size=1):
     tokenizer, model = generator
 
     inputs = tokenizer(
@@ -430,7 +430,7 @@ class TreeNode:
             child.phi = self.phi + logp
             child.update_phi()
 
-    def set_score(self, score, temperature=1.0):
+    def set_score(self, score, temperature):
         self.score = score
         self.logit = score / temperature
         # Backpropagate logit
@@ -487,10 +487,10 @@ def weave_tree_search(
     evaluate_fn,
     budget,
     round_budget,
-    n_expand=4,
-    beam_width=1,
-    max_lookahead=3,
-    temperature=1.0,
+    n_expand,
+    beam_width,
+    max_lookahead,
+    temperature,
 ):
     if max_lookahead < 1:
         raise ValueError("max_lookahead must be at least 1")
@@ -625,17 +625,18 @@ def main():
 
     root_text = system_prompt + prompt
     tree = TreeNode(root_text)
+    w_p = config['init_weave_param']
     try:
         branches = weave_tree_search(
             tree=tree,
-            generate_fn=partial(generate_fn, n_tokens=32),
+            generate_fn=partial(generate_fn, w_p['n_tokens']),
             evaluate_fn=evaluate_fn,
-            budget=4,
-            round_budget=2,
-            n_expand=2,
-            beam_width=1,
-            max_lookahead=3,
-            temperature=0.2,
+            budget=w_p['budget'],
+            round_budget=w_p['round_budget'],
+            n_expand=w_p['n_expand'],
+            beam_width=w_p['beam_width'],
+            max_lookahead=w_p['max_lookahead'],
+            temperature=w_p['temperature']
         )
 
         # Print results
