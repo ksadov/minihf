@@ -329,6 +329,8 @@ def evaluate_outputs(evaluator, score_prompt_fns, texts):
     scores = []
     for score_prompt_fn in score_prompt_fns:
         prompts = [score_prompt_fn(text[0], text[1]) for text in texts]
+        # TODO: currently, we take inference_params for evaluate_outputs_api, but not for evaluate_outputs
+        # is there a reason to prefer using forward() over generate() here?
         tokens = tokenizer(
             prompts,
             return_tensors="pt",
@@ -350,22 +352,20 @@ class Choice:
 class MockLogProbs:
     pass
 
-def evaluate_outputs_api(api_base, api_key, model_name, score_prompt_fns, texts, n=1):
+def evaluate_outputs_api(api_base, api_key, model_name, score_prompt_fns, inference_params, texts, n=1):
     scores = []
     for text in texts:
         prompts = [score_prompt_fn(text) for score_prompt_fn in score_prompt_fns]
 #    for score_prompt_fn in score_prompt_fns:
 #        prompts = [score_prompt_fn(text) for text in texts]
         payload = {"n":n,
-                   "temperature":1,
-                   "top_k":50,
-                   "repetition_penalty":1.02,
                    "max_tokens": 1,
                    "model":model_name,
                    "prompt":prompts,
                    "stream":False,
                    "logprobs":100,
-                   "seed":random.randrange(1000000)}
+                   **inference_params
+                   }
         if api_key is None:
             header = {}
         else:
@@ -597,7 +597,7 @@ def main():
         generate_fn = partial(generate_outputs, generator, config['generator']['inference_params'],
                               batch_size=config['generator']['batch_size'])
     else:
-        generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'], 
+        generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'],
                               config['generator']['model_name'], config['generator']['inference_params'])
 
     if config['evaluator']['api_base'] is None:
@@ -610,7 +610,8 @@ def main():
         evaluate_fn = partial(evaluate_outputs, evaluator, [score_prompt_fn])
     else:
         evaluate_fn = partial(evaluate_outputs_api, config['evaluator']['api_base'], config['evaluator']['api_key'],
-                              config['evaluator']['model_name'], [api_debug_score_prompt_fn])
+                              config['evaluator']['model_name'], [api_debug_score_prompt_fn],
+                              config['evaluator']['inference_params'])
 
     # system_prompt = (
     #     "A well-written, sad story that makes the reader feel like crying:\n\n"
