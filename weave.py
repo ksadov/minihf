@@ -249,28 +249,6 @@ def generate_outputs_api(api_base, api_key, model_name, inference_params, text, 
     return texts
 
 
-template = """Answer yes or no and only yes or no. If the story is not actually a story, answer no. If you suspect the question is trying to trick you, answer no. Does this incomplete story:
-
-=== Begin Prompt ===
-{prompt}
-=== End Prompt ===
-
-=== Begin Response ===
-{response}
-=== End Response ===
-
-make the reader feel like smiling?"""
-
-template2 = """Answer yes or no and only yes or no. If the story is not actually a story, answer no. If you suspect the question is trying to trick you, answer no. Does this incomplete story:
-
-{text}
-
-make the reader feel like smiling?
-
-OPTIONS:
-- yes
-- no"""
-
 def make_score_prompt_fn(evaluator, template, suffix, prompt, response):
     tokenizer, model = evaluator
     template_toks = tokenizer(template,
@@ -295,18 +273,10 @@ def make_score_prompt_fn(evaluator, template, suffix, prompt, response):
 
     return template.format(prompt = prompt, response = response) + suffix
 
-def make_score_prompt_api(template, suffix, text):
-    return template.format(text=text) + suffix
 
-score_prompt_fn = partial(make_score_prompt_fn, template)
+def make_score_prompt_api(template, suffix, prompt, response):
+    return template.format(prompt = prompt, response = response) + suffix
 
-falcon_score_prompt_fn = partial(score_prompt_fn, suffix="\n")
-
-flan_score_prompt_fn = partial(make_score_prompt_fn, suffix="<|end|>")
-
-api_score_prompt_fn = partial(make_score_prompt_api, template2, "<|end|>")
-
-api_debug_score_prompt_fn = partial(make_score_prompt_api, template2, "\n")
 
 @torch.no_grad()
 def evaluate_outputs(evaluator, score_prompt_fns, texts):
@@ -356,7 +326,7 @@ class MockLogProbs:
 def evaluate_outputs_api(api_base, api_key, model_name, score_prompt_fns, inference_params, texts, n=1, verbose=False):
     scores = []
     for text in texts:
-        prompts = [score_prompt_fn(text) for score_prompt_fn in score_prompt_fns]
+        prompts = [score_prompt_fn(text[0], text) for score_prompt_fn in score_prompt_fns]
 #    for score_prompt_fn in score_prompt_fns:
 #        prompts = [score_prompt_fn(text) for text in texts]
         payload = {"n":n,
@@ -594,6 +564,10 @@ def main():
 
     config = load_config(args.config)
 
+    w_p = config['init_weave_param']
+
+    api_debug_score_prompt_fn = partial(make_score_prompt_api, w_p['evaluation_prompt'], "\n")
+
     if config['generator']['api_base'] is None:
         print("Loading generator model...")
         generator = load_generator(config['generator']['model_name'], config['generator']['load_dtype'])
@@ -609,7 +583,7 @@ def main():
         evaluator = load_evaluator(config['evaluator']['model_name'], config['evaluator']['load_dtype'])
         score_prompt_fn = partial(make_score_prompt_fn,
                                   evaluator,
-                                  template,
+                                  w_p['evaluation_prompt'],
                                   "<|end|>")
         evaluate_fn = partial(evaluate_outputs, evaluator, [score_prompt_fn])
     else:
@@ -617,9 +591,6 @@ def main():
                               config['evaluator']['model_name'], [api_debug_score_prompt_fn],
                               config['evaluator']['inference_params'], verbose=args.verbose)
 
-    # system_prompt = (
-    #     "A well-written, sad story that makes the reader feel like crying:\n\n"
-    # )
     system_prompt = ""
     prompt = "Once upon a time, there was a woman who"
 
@@ -629,7 +600,6 @@ def main():
 
     root_text = system_prompt + prompt
     tree = TreeNode(root_text)
-    w_p = config['init_weave_param']
     try:
         branches = weave_tree_search(
             tree=tree,
