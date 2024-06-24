@@ -553,6 +553,31 @@ def weave_tree_search(
     )
     return nodes[:beam_width]
 
+def make_gen_eval_fns(config, evaluation_prompt, verbose=False):
+    if config['generator']['api_base'] is None:
+        print("Loading generator model...")
+        generator = load_generator(config['generator']['model_name'], config['generator']['load_dtype'])
+        generate_fn = partial(generate_outputs, generator, config['generator']['inference_params'],
+                              batch_size=config['generator']['batch_size'])
+    else:
+        generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'],
+                              config['generator']['model_name'], config['generator']['inference_params'],
+                                verbose=verbose)
+
+    if config['evaluator']['api_base'] is None:
+        print("Loading evaluator model...")
+        evaluator = load_evaluator(config['evaluator']['model_name'], config['evaluator']['load_dtype'])
+        score_prompt_fn = partial(make_score_prompt_fn,
+                                  evaluator,
+                                  evaluation_prompt,
+                                  "<|end|>")
+        evaluate_fn = partial(evaluate_outputs, evaluator, [score_prompt_fn])
+    else:
+        score_prompt_fn = partial(make_score_prompt_api, evaluation_prompt, "<|end|>")
+        evaluate_fn = partial(evaluate_outputs_api, config['evaluator']['api_base'], config['evaluator']['api_key'],
+                              config['evaluator']['model_name'], [score_prompt_fn],
+                              config['evaluator']['inference_params'], verbose=verbose)
+    return generate_fn, evaluate_fn
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -566,30 +591,7 @@ def main():
 
     w_p = config['init_weave_param']
 
-    api_debug_score_prompt_fn = partial(make_score_prompt_api, w_p['evaluation_prompt'], "\n")
-
-    if config['generator']['api_base'] is None:
-        print("Loading generator model...")
-        generator = load_generator(config['generator']['model_name'], config['generator']['load_dtype'])
-        generate_fn = partial(generate_outputs, generator, config['generator']['inference_params'],
-                              batch_size=config['generator']['batch_size'])
-    else:
-        generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'],
-                              config['generator']['model_name'], config['generator']['inference_params'],
-                                verbose=args.verbose)
-
-    if config['evaluator']['api_base'] is None:
-        print("Loading evaluator model...")
-        evaluator = load_evaluator(config['evaluator']['model_name'], config['evaluator']['load_dtype'])
-        score_prompt_fn = partial(make_score_prompt_fn,
-                                  evaluator,
-                                  w_p['evaluation_prompt'],
-                                  "<|end|>")
-        evaluate_fn = partial(evaluate_outputs, evaluator, [score_prompt_fn])
-    else:
-        evaluate_fn = partial(evaluate_outputs_api, config['evaluator']['api_base'], config['evaluator']['api_key'],
-                              config['evaluator']['model_name'], [api_debug_score_prompt_fn],
-                              config['evaluator']['inference_params'], verbose=args.verbose)
+    generate_fn, evaluate_fn = make_gen_eval_fns(config, w_p['evaluation_prompt'], verbose=args.verbose)
 
     system_prompt = ""
     prompt = "Once upon a time, there was a woman who"
