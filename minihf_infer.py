@@ -16,7 +16,7 @@ import peft
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from transformers import StoppingCriteria, StoppingCriteriaList
 from transformers import BitsAndBytesConfig
-from weave import weave_tree_search, generate_outputs, evaluate_outputs
+from weave import weave_tree_search, generate_outputs, evaluate_outputs, make_gen_eval_fns
 from weave import make_score_prompt_fn, TreeNode
 from lora_tune import lora_tune_evaluator
 from dataset import ZippedConversationsDataset
@@ -36,8 +36,7 @@ def set_adapter(model, adapter_name):
     finally:
         model.set_adapter(old_adapter_name)
 
-def load_generator_evaluator(config):
-    if config["shared_base_adapters"]:
+def load_shared_base_generator_evaluator(config):
         evaluator_adapter_name = config['evaluator']['model_name'] if config['evaluator']['is_adapter'] else None
         generator_adapter_name = config['generator']['model_name'] if config['generator']['is_adapter'] else None
         peft_config = peft.PeftConfig.from_pretrained(evaluator_adapter_name)
@@ -75,33 +74,23 @@ def load_generator_evaluator(config):
                 "mlp.down_proj",
             ],
         )
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(config['generator']['model_name'])
-        model = AutoModelForCausalLM.from_pretrained(config['generator']['model_name'])
-    tokenizer.truncation_side = "left"
-    tokenizer.padding_side = "left"
-    tokenizer.pad_token = tokenizer.eos_token
-    return tokenizer, model
+        return tokenizer, model
 
 def load_models(config):
     global evaluator, evaluate_fn, generator, generate_fn
-    tokenizer, model = load_generator_evaluator(config)
-    evaluator = generator = (tokenizer, model)
-    if config['shared_base_adapters']:
+    if config['evaluator']['model_name'] is None:
+            evaluate_fn = None
+    elif config['shared_base_adapters']:
+        tokenizer, model = load_shared_base_generator_evaluator(config)
+        evaluator = generator = (tokenizer, model)
         adapter_name = "generator" if "generator" in generator[1].peft_config else None
         generate_fn = set_adapter(generator[1], adapter_name)(partial(generate_outputs, generator,
                                                                       config['generator']['inference_params'],
                                                                       batch_size=1))
-    else:
-        generate_fn = partial(generate_outputs, generator, config['generator']['inference_params'], batch_size=1)
-    if config['evaluator']['model_name'] is None:
-            evaluate_fn = None
-    else:
-        if config['shared_base_adapters']:
-            evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs,
+        evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs,
                                                                          evaluator))
-        else:
-            evaluate_fn = partial(evaluate_outputs, evaluator)
+    else:
+        generate_fn, evaluate_fn = make_gen_eval_fns(config, config['init_weave_param']['evaluation_prompt'])
 
 def create_app(config, device):
     app = Flask(__name__)
@@ -187,12 +176,6 @@ def create_app(config, device):
             evaluation_prompt = params['evaluationPrompt']
             full_prompt = context + " " + prompt
             tree = TreeNode(full_prompt)
-            score_prompt_fn = partial(make_score_prompt_fn, evaluator)
-            score_prompt_fn = partial(score_prompt_fn, evaluation_prompt)
-            # MiniHF evaluator LoRA suffix
-            score_prompt_fn = partial(score_prompt_fn, "<|end|>")
-            # Change name to avoid overwriting global baseline evaluate_fn partial
-            score_fn = partial(evaluate_fn, [score_prompt_fn])
             weave_param_defaults = {"weave_n_tokens":32, "weave_budget":72,
                                     "weave_round_budget":24, "weave_n_expand":8,
                                     "weave_beam_width":1, "weave_max_lookahead":3,
@@ -209,7 +192,7 @@ def create_app(config, device):
             branches = weave_tree_search(tree=tree,
                                         generate_fn=partial(generate_fn,
                                                             n_tokens=wp["weave_n_tokens"]),
-                                        evaluate_fn=score_fn,
+                                        evaluate_fn=evaluate_fn,
                                         budget=wp["weave_budget"],
                                         round_budget=wp["weave_round_budget"],
                                         n_expand=wp["weave_n_expand"],
