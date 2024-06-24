@@ -1,11 +1,17 @@
 {
   "evaluator": {
     "model_name": "jdpressman/minihf_evaluator_mistral_7b_v0.1",
-    "is_adapter": true
+    "is_adapter": true,
+    "api_base": null,
+    "api_key": null,
+    "load_dtype": "int8"
   },
   "generator": {
     "model_name": "mistralai/Mistral-7B-v0.1",
-    "is_adapter": false
+    "is_adapter": false,
+    "api_base": null,
+    "api_key": null,
+    "load_dtype": "int4"
   },
   "shared_base_adapters": true,
   "init_weave_param": {

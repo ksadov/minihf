@@ -21,6 +21,8 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.generation.streamers import BaseStreamer
 
+from utils import load_config
+
 
 def logsumexp(xs):
     if not len(xs):
@@ -595,38 +597,32 @@ def weave_tree_search(
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--gen-api-base", help="The base URL for the generator model API",
-                        default=None)
-    parser.add_argument("--gen-api-key", help="API key for the generator model API",
-                        default=None)
-    parser.add_argument("--eval-api-base", help="The base URL for the evaluation model API",
-                        default=None)
-    parser.add_argument("--eval-api-key", help="API key for the evaluation model API",
-                        default=None)
-    parser.add_argument("--gen-model-name", help="The inference engine to use for generation")
-    parser.add_argument("--eval-model-name", help="The inference engine to use for evaluation")
+    parser.add_argument("--config", "-c", help="Path to the configuration file", default="configs/gpt2.json")
     args = parser.parse_args()
 
     os.environ["BITSANDBYTES_NOWELCOME"] = "1"
 
-    if args.gen_api_base is None:
+    config = load_config(args.config)
+
+    if config['generator']['api_base'] is None:
         print("Loading generator model...")
-        generator = load_generator(args.gen_model_name)
+        generator = load_generator(config['generator']['model_name'], config['generator']['load_dtype'])
         generate_fn = partial(generate_outputs, generator, batch_size=4)
     else:
-        generate_fn = partial(generate_outputs_api, args.gen_api_base, args.gen_api_key, args.gen_model_name)
+        generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'],
+                              config['generator']['model_name'])
 
-    if args.eval_api_base is None:
+    if config['evaluator']['api_base'] is None:
         print("Loading evaluator model...")
-        evaluator = load_evaluator(args.eval_model_name)
+        evaluator = load_evaluator(config['evaluator']['model_name'], config['evaluator']['load_dtype'])
         score_prompt_fn = partial(make_score_prompt_fn,
                                   evaluator,
                                   template,
                                   "<|end|>")
         evaluate_fn = partial(evaluate_outputs, evaluator, [score_prompt_fn])
     else:
-        evaluate_fn = partial(evaluate_outputs_api, args.eval_api_base, args.eval_api_key, args.eval_model_name,
-                              [api_debug_score_prompt_fn])
+        evaluate_fn = partial(evaluate_outputs_api, config['evaluator']['api_base'], config['evaluator']['api_key'],
+                              config['evaluator']['model_name'], [api_debug_score_prompt_fn])
 
     # system_prompt = (
     #     "A well-written, sad story that makes the reader feel like crying:\n\n"

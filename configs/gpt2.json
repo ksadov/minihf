@@ -1,11 +1,17 @@
 {
   "evaluator": {
-    "model_name": null,
-    "is_adapter": false
+    "model_name": "Meta-Llama-3-8B-Q4_5_M",
+    "is_adapter": false,
+    "api_base": "http://localhost:5000/v1/completions",
+    "api_key": null,
+    "load_dtype": null
   },
   "generator": {
     "model_name": "openai-community/gpt2",
-    "is_adapter": false
+    "is_adapter": false,
+    "api_base": null,
+    "api_key": null,
+    "load_dtype": "float32"
   },
   "shared_base_adapters": false,
   "init_weave_param": {
