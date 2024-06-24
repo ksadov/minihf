@@ -256,7 +256,7 @@ def weave_tree_search(
     )
     return nodes[:beam_width]
 
-def make_gen_eval_fns(config, evaluation_prompt):
+def init_gen_eval(config, evaluation_prompt):
     if config['generator']['api_base'] is None:
         generator = LocalGenerator(config['generator']['model_name'], config['generator']['load_dtype'],
                                    config['generator']['inference_params'])
@@ -271,7 +271,7 @@ def make_gen_eval_fns(config, evaluation_prompt):
         evaluator = RemoteEvaluator(config['evaluator']['model_name'], config['evaluator']['api_base'],
                                     config['evaluator']['api_key'], config['evaluator']['inference_params'],
                                     evaluation_prompt, "<|end|>")
-    return generator.generate_outputs, evaluator.evaluate_outputs
+    return generator, evaluator
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -285,22 +285,22 @@ def main():
 
     w_p = config['init_weave_param']
 
-    generate_fn, evaluate_fn = make_gen_eval_fns(config, w_p['evaluation_prompt'])
+    generator, evaluator = init_gen_eval(config, w_p['evaluation_prompt'])
 
     system_prompt = ""
     prompt = "Once upon a time, there was a woman who"
 
     def evaluate_without_system_prompt(texts):
         stripped_texts = [text[len(system_prompt) :] for text in texts]
-        return evaluate_fn(stripped_texts)
+        return evaluator.evaluate_outputs(stripped_texts)
 
     root_text = system_prompt + prompt
     tree = TreeNode(root_text)
     try:
         branches = weave_tree_search(
             tree=tree,
-            generate_fn=partial(generate_fn, n_tokens=w_p['n_tokens']),
-            evaluate_fn=evaluate_fn,
+            generate_fn=partial(generator.generate_outputs, n_tokens=w_p['n_tokens']),
+            evaluate_fn=evaluator.evaluate_outputs,
             budget=w_p['budget'],
             round_budget=w_p['round_budget'],
             n_expand=w_p['n_expand'],

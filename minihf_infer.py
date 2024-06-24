@@ -16,7 +16,7 @@ import peft
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from transformers import StoppingCriteria, StoppingCriteriaList
 from transformers import BitsAndBytesConfig
-from inference.weave import weave_tree_search, make_gen_eval_fns, TreeNode
+from inference.weave import weave_tree_search, init_gen_eval, TreeNode
 from inference.utils import generate_outputs_local, evaluate_outputs_local
 from lora_tune import lora_tune_evaluator
 from dataset import ZippedConversationsDataset
@@ -90,7 +90,9 @@ def load_models(config):
         evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs_local,
                                                                          evaluator))
     else:
-        generate_fn, evaluate_fn = make_gen_eval_fns(config, config['init_weave_param']['evaluation_prompt'])
+        generator, evaluator = init_gen_eval(config, config['init_weave_param']['evaluation_prompt'])
+        generate_fn = generator.generate_outputs
+        evaluate_fn = evaluator.evaluate_outputs
 
 def create_app(config, device):
     app = Flask(__name__)
@@ -236,7 +238,10 @@ def create_app(config, device):
         if request.method =='POST':
             params = request.get_json()
             text = params['text']
-            tokenizer, model = generator
+            if isinstance(generator, tuple):
+                tokenizer, _ = generator
+            else:
+                tokenizer = generator.tokenizer
             inputs = tokenizer([text] * 1, return_tensors="pt", truncation=True, max_length=4096).to(device)
             # TODO: Proper CORS
             response = jsonify(inputs['input_ids'][0].shape[0])
