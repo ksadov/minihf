@@ -227,16 +227,13 @@ def generate_outputs(generator, inference_params, text, n_tokens, n=1, batch_siz
     return [out_texts[i][in_length:] for i in range(len(out_texts))]
 
 
-def generate_outputs_api(api_base, api_key, model_name, text, n_tokens, n=1, port=5000):
+def generate_outputs_api(api_base, api_key, model_name, inference_params, text, n_tokens, n=1, port=5000):
     payload = {"n":n,
-               "temperature":1,
-               "top_k":50,
-               "repetition_penalty":1.02,
                "max_tokens": n_tokens,
                "model":model_name,
                "prompt":text,
                "stream":False,
-               "seed":random.randrange(1000000)
+               **inference_params
                }
     if api_key is None:
         header = {}
@@ -247,15 +244,7 @@ def generate_outputs_api(api_base, api_key, model_name, text, n_tokens, n=1, por
                              headers=header,
                              data=json.dumps(payload))
     # print("GEN API RESPONSE:", response.json())
-    # return completion.json()["choices"][0]["text"]
     texts = [choice["text"] for choice in response.json()["choices"]]
-    return texts
-
-def generate_outputs_remote(client, **params):
-    response = client.completions.create(
-            **params
-        ).to_dict()
-    texts = [choice["text"] for choice in response["choices"]]
     return texts
 
 
@@ -608,8 +597,8 @@ def main():
         generate_fn = partial(generate_outputs, generator, config['generator']['inference_params'],
                               batch_size=config['generator']['batch_size'])
     else:
-        generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'],
-                              config['generator']['model_name'])
+        generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'], 
+                              config['generator']['model_name'], config['generator']['inference_params'])
 
     if config['evaluator']['api_base'] is None:
         print("Loading evaluator model...")
