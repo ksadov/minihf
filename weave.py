@@ -213,13 +213,11 @@ def generate_outputs(generator, text, n_tokens, n=1, batch_size=1):
                 input_ids,
                 attention_mask=attention_mask,
                 do_sample=True,
-                temperature=1,
-                top_k=50,
-                repetition_penalty=1.02,
                 min_new_tokens=n_tokens,
                 max_new_tokens=n_tokens,
                 pad_token_id=tokenizer.eos_token_id,
                 streamer=pbar,
+                **inference_params
             )
             outputs.append(outputs_batch)
 
@@ -607,7 +605,8 @@ def main():
     if config['generator']['api_base'] is None:
         print("Loading generator model...")
         generator = load_generator(config['generator']['model_name'], config['generator']['load_dtype'])
-        generate_fn = partial(generate_outputs, generator, batch_size=4)
+        generate_fn = partial(generate_outputs, generator, config['generator']['inference_params'],
+                              batch_size=config['generator']['batch_size'])
     else:
         generate_fn = partial(generate_outputs_api, config['generator']['api_base'], config['generator']['api_key'],
                               config['generator']['model_name'])

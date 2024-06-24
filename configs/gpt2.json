@@ -11,7 +11,13 @@
     "is_adapter": false,
     "api_base": null,
     "api_key": null,
-    "load_dtype": "float32"
+    "load_dtype": "float32",
+    "inference_params": {
+      "temperature": 1,
+      "top_k": 50,
+      "repetition_penalty": 1.02
+    },
+    "batch_size": 4
   },
   "shared_base_adapters": false,
   "init_weave_param": {
