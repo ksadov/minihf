@@ -16,7 +16,7 @@ class SharedBase(Generator, Evaluator):
         self.evaluator_inference_param_dict = evaluator_inference_param_dict
         self.generator_inference_param_dict = generator_inference_param_dict
         self.load_model()
-        self.gen_adapter_label = "generator" if "generator" in self.model[1].peft_config else None
+        self.gen_adapter_label = "generator" if "generator" in self.model.peft_config else None
         self.eval_adapter_label = "evaluator"
 
     def load_model(self):
