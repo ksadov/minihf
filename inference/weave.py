@@ -278,7 +278,7 @@ def init_gen_eval(config, evaluation_prompt):
             evaluator = RemoteEvaluator(config['evaluator']['model_name'], config['evaluator']['api_base'],
                                         config['evaluator']['api_key'], config['evaluator']['inference_params'],
                                         evaluation_prompt, "<|end|>")
-        return generator, evaluator
+    return generator, evaluator
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
