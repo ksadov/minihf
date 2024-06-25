@@ -2,6 +2,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from inference.utils import Choice, MockLogProbs, get_score_from_completion, InferenceModel, evaluate_outputs_local
 from inference.generator import Generator
 from inference.evaluator import Evaluator
+from utils import evaluate_outputs_local, generate_outputs_local
 import peft
 import torch
 
@@ -57,9 +58,9 @@ class SharedBase(Generator, Evaluator):
 
     def evaluate_outputs(self, texts):
         self.set_adapter(self.eval_adapter_label)
-        return super().evaluate_outputs(self.model, self.tokenizer, self.evaluator_inference_param_dict, texts)
+        return evaluate_outputs_local(self.model, self.tokenizer, self.evaluator_inference_param_dict, texts)
     
     def generate_outputs(self, text, n_tokens, n=1, batch_size=1):
         self.set_adapter(self.gen_adapter_label)
-        return super().generate_outputs(self.model, self.tokenizer, self.generator_inference_param_dict, text, n_tokens, n, batch_size)
+        return generate_outputs_local(self.model, self.tokenizer, self.generator_inference_param_dict, text, n_tokens, n, batch_size)
             
