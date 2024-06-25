@@ -57,9 +57,9 @@ class SharedBase(Generator, Evaluator):
 
     def evaluate_outputs(self, texts):
         self.set_adapter(self.eval_adapter_label)
-        return super.evaluate_outputs(self.model, self.tokenizer, self.evaluator_inference_param_dict, texts)
+        return super().evaluate_outputs(self.model, self.tokenizer, self.evaluator_inference_param_dict, texts)
     
     def generate_outputs(self, text, n_tokens, n=1, batch_size=1):
         self.set_adapter(self.gen_adapter_label)
-        return super.generate_outputs(self.model, self.tokenizer, self.generator_inference_param_dict, text, n_tokens, n, batch_size)
+        return super().generate_outputs(self.model, self.tokenizer, self.generator_inference_param_dict, text, n_tokens, n, batch_size)
             
