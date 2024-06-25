@@ -264,20 +264,21 @@ def init_gen_eval(config, evaluation_prompt):
         generator = evaluator = SharedBase(generator_adapter_name, evaluator_adapter_name,
                  config['generator']['inference_params'], config['evaluator']['inference_params'], evaluation_prompt, 
                  "<|end|>")
-    if config['generator']['api_base'] is None:
-        generator = LocalGenerator(config['generator']['model_name'], config['generator']['load_dtype'],
-                                   config['generator']['inference_params'])
     else:
-        generator = RemoteGenerator(config['generator']['model_name'], config['generator']['api_base'],
-                                    config['generator']['api_key'], evaluator_adapter_name)
-    if config['evaluator']['api_base'] is None:
-        evaluator = LocalEvaluator(config['evaluator']['model_name'], config['evaluator']['load_dtype'],
-                                   config['evaluator']['inference_params'], evaluation_prompt, "<|end|>")
-    else:
-        evaluator = RemoteEvaluator(config['evaluator']['model_name'], config['evaluator']['api_base'],
-                                    config['evaluator']['api_key'], config['evaluator']['inference_params'],
-                                    evaluation_prompt, "<|end|>")
-    return generator, evaluator
+        if config['generator']['api_base'] is None:
+            generator = LocalGenerator(config['generator']['model_name'], config['generator']['load_dtype'],
+                                    config['generator']['inference_params'])
+        else:
+            generator = RemoteGenerator(config['generator']['model_name'], config['generator']['api_base'],
+                                        config['generator']['api_key'], evaluator_adapter_name)
+        if config['evaluator']['api_base'] is None:
+            evaluator = LocalEvaluator(config['evaluator']['model_name'], config['evaluator']['load_dtype'],
+                                    config['evaluator']['inference_params'], evaluation_prompt, "<|end|>")
+        else:
+            evaluator = RemoteEvaluator(config['evaluator']['model_name'], config['evaluator']['api_base'],
+                                        config['evaluator']['api_key'], config['evaluator']['inference_params'],
+                                        evaluation_prompt, "<|end|>")
+        return generator, evaluator
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
