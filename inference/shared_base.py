@@ -1,8 +1,8 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-from inference.utils import Choice, MockLogProbs, get_score_from_completion, InferenceModel, evaluate_outputs_local
+from inference.utils import Choice, MockLogProbs, get_score_from_completion, InferenceModel, evaluate_outputs_local, \
+  generate_outputs_local
 from inference.generator import Generator
 from inference.evaluator import Evaluator
-from utils import evaluate_outputs_local, generate_outputs_local
 import peft
 import torch
 
