@@ -7,7 +7,11 @@ from inference.utils import InferenceModel, ProgressBarStreamer, generate_output
 
 class Generator(InferenceModel, ABC):
     def __init__(self, model_name, inference_param_dict):
-        super().__init__(model_name, inference_param_dict)
+        self.model_name = model_name
+        self.inference_param_dict = inference_param_dict
+
+    def generate_outputs(self, text, n_tokens, n=1, verbose=False):
+        pass
 
 
 class LocalGenerator(Generator):

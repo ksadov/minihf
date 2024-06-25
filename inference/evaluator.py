@@ -7,9 +7,15 @@ from inference.utils import Choice, MockLogProbs, get_score_from_completion, Inf
 
 class Evaluator(InferenceModel, ABC):
     def __init__(self, model_name, inference_param_dict, prompt_template, prompt_suffix):
-        super().__init__(model_name, inference_param_dict)
+        self.model_name = model_name
+        self.inference_param_dict = inference_param_dict
+        self.template = prompt_template
+        self.suffix = prompt_suffix
 
     def score_prompt_fn(self, prompt, response):
+        pass
+
+    def evaluate_outputs(self, texts):
         pass
 
 
@@ -19,8 +25,6 @@ class LocalEvaluator(Evaluator):
         self.load_dtype = load_dtype
         print("Loading evaluator model...")
         self.tokenizer, self.model = self.load_evaluator()
-        self.template = prompt_template
-        self.suffix = prompt_suffix
 
     def load_evaluator(self):
       tokenizer = AutoTokenizer.from_pretrained(self.model_name)
@@ -67,8 +71,6 @@ class LocalEvaluator(Evaluator):
 class RemoteEvaluator(Evaluator):
     def __init__(self, model_name, api_base, api_key, inference_param_dict, prompt_template, prompt_suffix):
         super().__init__(model_name, inference_param_dict, prompt_template, prompt_suffix)
-        self.template = prompt_template
-        self.suffix = prompt_suffix
         self.api_base = api_base
         self.api_key = api_key
 

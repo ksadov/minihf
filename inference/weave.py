@@ -12,6 +12,7 @@ import os
 import random
 from inference.evaluator import LocalEvaluator, RemoteEvaluator
 from inference.generator import LocalGenerator, RemoteGenerator
+from inference.shared_base import SharedBase
 
 from rich import print as rprint
 from rich.traceback import install
@@ -257,13 +258,18 @@ def weave_tree_search(
     return nodes[:beam_width]
 
 def init_gen_eval(config, evaluation_prompt):
+    if config['shared_base_adapters']:
+        generator_adapter_name = config['generator']['model_name'] if config['generator']['is_adapter'] else None
+        evaluator_adapter_name = config['evaluator']['model_name'] if config['evaluator']['is_adapter'] else None
+        generator = evaluator = SharedBase(generator_adapter_name, evaluator_adapter_name,
+                 config['generator']['inference_params'], config['evaluator']['inference_params'], evaluation_prompt, 
+                 "<|end|>")
     if config['generator']['api_base'] is None:
         generator = LocalGenerator(config['generator']['model_name'], config['generator']['load_dtype'],
                                    config['generator']['inference_params'])
     else:
         generator = RemoteGenerator(config['generator']['model_name'], config['generator']['api_base'],
-                                    config['generator']['api_key'], config['generator']['inference_params'])
-
+                                    config['generator']['api_key'], evaluator_adapter_name)
     if config['evaluator']['api_base'] is None:
         evaluator = LocalEvaluator(config['evaluator']['model_name'], config['evaluator']['load_dtype'],
                                    config['evaluator']['inference_params'], evaluation_prompt, "<|end|>")

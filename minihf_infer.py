@@ -21,74 +21,10 @@ from inference.utils import generate_outputs_local, evaluate_outputs_local
 from lora_tune import lora_tune_evaluator
 from dataset import ZippedConversationsDataset
 
-@contextmanager
-def set_adapter(model, adapter_name):
-    old_adapter_name = model.active_adapter
-    try:
-        if adapter_name is not None:
-            model.set_adapter(adapter_name)
-            print(adapter_name)
-            yield model
-        else:
-            with model.disable_adapter():
-                print("Reached here!")
-                yield model
-    finally:
-        model.set_adapter(old_adapter_name)
-
-def load_shared_base_generator_evaluator(config):
-        evaluator_adapter_name = config['evaluator']['model_name'] if config['evaluator']['is_adapter'] else None
-        generator_adapter_name = config['generator']['model_name'] if config['generator']['is_adapter'] else None
-        peft_config = peft.PeftConfig.from_pretrained(evaluator_adapter_name)
-        model_name = peft_config.base_model_name_or_path
-        tokenizer = AutoTokenizer.from_pretrained(evaluator_adapter_name)
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True,
-        )
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            device_map="auto",
-            quantization_config=bnb_config,
-            torch_dtype=torch.bfloat16,
-            trust_remote_code=True,
-        )
-        model = peft.PeftModel.from_pretrained(model, evaluator_adapter_name, "evaluator")
-        if generator_adapter_name is not None:
-            model.load_adapter(generator_adapter_name, "generator")
-        peft_config = peft.LoraConfig(
-            peft.TaskType.CAUSAL_LM,
-            inference_mode=False,
-            r=32,
-            lora_alpha=8,
-            lora_dropout=0.0,
-            target_modules=[
-                "self_attn.q_proj",
-                "self_attn.k_proj",
-                "self_attn.v_proj",
-                "self_attn.o_proj",
-                "mlp.gate_proj",
-                "mlp.up_proj",
-                "mlp.down_proj",
-            ],
-        )
-        return tokenizer, model
-
 def load_models(config):
     global evaluator, evaluate_fn, generator, generate_fn
     if config['evaluator']['model_name'] is None:
             evaluate_fn = None
-    elif config['shared_base_adapters']:
-        tokenizer, model = load_shared_base_generator_evaluator(config)
-        evaluator = generator = (tokenizer, model)
-        adapter_name = "generator" if "generator" in generator[1].peft_config else None
-        generate_fn = set_adapter(generator[1], adapter_name)(partial(generate_outputs_local, generator,
-                                                                      config['generator']['inference_params'],
-                                                                      batch_size=1))
-        evaluate_fn = set_adapter(evaluator[1], "evaluator")(partial(evaluate_outputs_local,
-                                                                         evaluator))
     else:
         generator, evaluator = init_gen_eval(config, config['init_weave_param']['evaluation_prompt'])
         generate_fn = generator.generate_outputs
@@ -116,18 +52,7 @@ def create_app(config, device):
             base_model_name = config['generator']['model_name']
             if base_model_name is None:
                 base_model_name = generator[1].active_peft_config.base_model_name_or_path
-            try:
-                adapter = params["adapter"]
-            except KeyError:
-                if config['shared_base_adapters']:
-                    adapter = "generator" if "generator" in generator[1].peft_config else None
-                else:
-                    adapter = None
-            if (adapter == "generator") or (adapter == None):
-                gen_fn = generate_fn
-            elif adapter == "evaluator":
-                gen_fn = set_adapter(generator[1], "evaluator")(partial(generate_outputs_local, generator, batch_size=1))
-            outs = gen_fn(prompt, new_tokens, n=n_outputs)
+            outs = generate_fn(prompt, new_tokens, n=n_outputs)
             batch = []
             if prompt_node:
                 timestamp = str(time.time())
