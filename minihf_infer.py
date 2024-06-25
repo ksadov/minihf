@@ -17,21 +17,24 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from transformers import StoppingCriteria, StoppingCriteriaList
 from transformers import BitsAndBytesConfig
 from inference.weave import weave_tree_search, init_gen_eval, TreeNode
-from inference.utils import generate_outputs_local, evaluate_outputs_local
 from lora_tune import lora_tune_evaluator
 from dataset import ZippedConversationsDataset
+
 
 def load_models(config):
     global evaluator, evaluate_fn, generator, generate_fn
     if config['evaluator']['model_name'] is None:
-            evaluate_fn = None
+        evaluate_fn = None
     else:
-        generator, evaluator = init_gen_eval(config, config['init_weave_param']['evaluation_prompt'])
+        generator, evaluator = init_gen_eval(
+            config, config['init_weave_param']['evaluation_prompt'])
         generate_fn = generator.generate_outputs
         evaluate_fn = evaluator.evaluate_outputs
 
+
 def create_app(config, device):
     app = Flask(__name__)
+
     @app.route("/generate", methods=['OPTIONS', 'POST'])
     def generate():
         if request.method == 'OPTIONS':
@@ -40,7 +43,7 @@ def create_app(config, device):
             response.headers.add("Access-Control-Allow-Headers", "*")
             response.headers.add("Access-Control-Allow-Methods", "*")
             return response
-        if request.method =='POST':
+        if request.method == 'POST':
             params = request.get_json()
             prompt = params['prompt']
             if 'prompt_node' in params:
@@ -56,21 +59,22 @@ def create_app(config, device):
             batch = []
             if prompt_node:
                 timestamp = str(time.time())
-                id_ = hashlib.md5((prompt + timestamp).encode("UTF-8")).hexdigest()
-                batch.append({"id":id_,
-                            "prompt":prompt,
-                            "text":"",
-                            "timestamp":timestamp,
-                            "nodes":[]})
+                id_ = hashlib.md5(
+                    (prompt + timestamp).encode("UTF-8")).hexdigest()
+                batch.append({"id": id_,
+                              "prompt": prompt,
+                              "text": "",
+                              "timestamp": timestamp,
+                              "nodes": []})
             for out in outs:
                 timestamp = str(time.time())
                 id_ = hashlib.md5(out.encode("UTF-8")).hexdigest()
-                batch.append({"id":id_,
-                            "base_model": base_model_name,
-                            "prompt": prompt,
-                            "text":out,
-                            "timestamp":timestamp,
-                            "nodes":[]})
+                batch.append({"id": id_,
+                              "base_model": base_model_name,
+                              "prompt": prompt,
+                              "text": out,
+                              "timestamp": timestamp,
+                              "nodes": []})
             # TODO: Proper CORS
             response = jsonify(utils.jsonify_tensors(batch))
             response.headers.add("Access-Control-Allow-Origin", "*")
@@ -92,7 +96,7 @@ def create_app(config, device):
             response.headers.add("Access-Control-Allow-Headers", "*")
             response.headers.add("Access-Control-Allow-Methods", "*")
             return response
-        if request.method =='POST':
+        if request.method == 'POST':
             params = request.get_json()
             prompt = params['prompt']
             context = params['context']
@@ -103,10 +107,10 @@ def create_app(config, device):
             evaluation_prompt = params['evaluationPrompt']
             full_prompt = context + " " + prompt
             tree = TreeNode(full_prompt)
-            weave_param_defaults = {"weave_n_tokens":32, "weave_budget":72,
-                                    "weave_round_budget":24, "weave_n_expand":8,
-                                    "weave_beam_width":1, "weave_max_lookahead":3,
-                                    "weave_temperature":0.25}
+            weave_param_defaults = {"weave_n_tokens": 32, "weave_budget": 72,
+                                    "weave_round_budget": 24, "weave_n_expand": 8,
+                                    "weave_beam_width": 1, "weave_max_lookahead": 3,
+                                    "weave_temperature": 0.25}
             wp = {}
             for key in weave_param_defaults.keys():
                 if key in params:
@@ -117,35 +121,37 @@ def create_app(config, device):
                 else:
                     wp[key] = weave_param_defaults[key]
             branches = weave_tree_search(tree=tree,
-                                        generate_fn=partial(generate_fn,
-                                                            n_tokens=wp["weave_n_tokens"]),
-                                        evaluate_fn=evaluate_fn,
-                                        budget=wp["weave_budget"],
-                                        round_budget=wp["weave_round_budget"],
-                                        n_expand=wp["weave_n_expand"],
-                                        beam_width=wp["weave_beam_width"],
-                                        max_lookahead=wp["weave_max_lookahead"],
-                                        temperature=wp["weave_temperature"])
+                                         generate_fn=partial(generate_fn,
+                                                             n_tokens=wp["weave_n_tokens"]),
+                                         evaluate_fn=evaluate_fn,
+                                         budget=wp["weave_budget"],
+                                         round_budget=wp["weave_round_budget"],
+                                         n_expand=wp["weave_n_expand"],
+                                         beam_width=wp["weave_beam_width"],
+                                         max_lookahead=wp["weave_max_lookahead"],
+                                         temperature=wp["weave_temperature"])
             batch = []
             if prompt_node:
                 timestamp = str(time.time())
-                id_ = hashlib.md5((prompt + timestamp).encode("UTF-8")).hexdigest()
-                batch.append({"id":id_,
-                            "prompt":prompt,
-                            "evaluationPrompt":evaluation_prompt,
-                            "text":"",
-                            "timestamp":timestamp,
-                            "nodes":[]})
+                id_ = hashlib.md5(
+                    (prompt + timestamp).encode("UTF-8")).hexdigest()
+                batch.append({"id": id_,
+                              "prompt": prompt,
+                              "evaluationPrompt": evaluation_prompt,
+                              "text": "",
+                              "timestamp": timestamp,
+                              "nodes": []})
             for branch in branches:
                 branch_text = branch.branch_text()
                 timestamp = str(time.time())
-                id_ = hashlib.md5((branch_text + timestamp).encode("UTF-8")).hexdigest()
-                batch.append({"id":id_,
-                            "prompt": prompt,
-                            "evaluationPrompt": evaluation_prompt,
-                            "text":branch_text,
-                            "timestamp":timestamp,
-                            "nodes":branch.serialize_branch()})
+                id_ = hashlib.md5(
+                    (branch_text + timestamp).encode("UTF-8")).hexdigest()
+                batch.append({"id": id_,
+                              "prompt": prompt,
+                              "evaluationPrompt": evaluation_prompt,
+                              "text": branch_text,
+                              "timestamp": timestamp,
+                              "nodes": branch.serialize_branch()})
             # TODO: Proper CORS
             response = jsonify(utils.jsonify_tensors(batch))
             response.headers.add("Access-Control-Allow-Origin", "*")
@@ -160,14 +166,15 @@ def create_app(config, device):
             response.headers.add("Access-Control-Allow-Headers", "*")
             response.headers.add("Access-Control-Allow-Methods", "*")
             return response
-        if request.method =='POST':
+        if request.method == 'POST':
             params = request.get_json()
             text = params['text']
             if isinstance(generator, tuple):
                 tokenizer, _ = generator
             else:
                 tokenizer = generator.tokenizer
-            inputs = tokenizer([text] * 1, return_tensors="pt", truncation=True, max_length=4096).to(device)
+            inputs = tokenizer([text] * 1, return_tensors="pt",
+                               truncation=True, max_length=4096).to(device)
             # TODO: Proper CORS
             response = jsonify(inputs['input_ids'][0].shape[0])
             response.headers.add("Access-Control-Allow-Origin", "*")
@@ -178,10 +185,12 @@ def create_app(config, device):
         return render_template('minihf.html', **config['init_weave_param'])
     return app
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", "-c", type=str, default="configs/jdp.json")
-    parser.add_argument("--device", "-d", type=str, default=utils.auto_device())
+    parser.add_argument("--device", "-d", type=str,
+                        default=utils.auto_device())
     parser.add_argument("--port", "-p", type=int, default=5000)
     args = parser.parse_args()
     with open(args.config, 'r') as f:
@@ -189,6 +198,7 @@ def main():
     load_models(config)
     app = create_app(config, args.device)
     app.run(port=args.port)
+
 
 if __name__ == "__main__":
     main()
